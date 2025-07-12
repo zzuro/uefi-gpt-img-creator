@@ -2,14 +2,15 @@
 #include <compiler.h>
 
 #define LBA_SIZE 512
+#define LBA_ALIGNMENT _ul(MB(1) / LBA_SIZE) // 1MB alignment, after MBR and GPT header
+
 #define B2LBA(val) ((_ul(val)) / LBA_SIZE + ((_ul(val)) % LBA_SIZE ? 1 : 0))
+#define LBA_NEXT_ALIGN(val) (val - (val % LBA_ALIGNMENT) + LBA_ALIGNMENT)
 
 #define ESP_SIZE MB(33)
-#define ESP_STARTING_LBA (MB(1) / LBA_SIZE) // 1MB alignment, after MBR and GPT header
+#define ESP_STARTING_LBA LBA_ALIGNMENT
 
 #define DATA_SIZE MB(1) 
-#define DATA_STARTING_LBA 1
+#define DATA_STARTING_LBA LBA_NEXT_ALIGN(ESP_STARTING_LBA + B2LBA(ESP_SIZE)) 
 
-#define PADDIGG_SIZE MB(1) 
-
-#define DISK_SIZE (ESP_SIZE + DATA_SIZE + PADDIGG_SIZE)
+#define DISK_SIZE GB(2)

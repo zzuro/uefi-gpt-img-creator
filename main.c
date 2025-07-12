@@ -1,13 +1,17 @@
+// Source for LBA calculations: https://en.wikipedia.org/wiki/GUID_Partition_Table
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <compiler.h>
 #include <mbr.h>
 #include <gpt.h>
 #include <utils.h>
 #include <const.h>
+#include <log.h>
 
 #define NAME_LEN 512
 
@@ -18,6 +22,8 @@ int main(int argc, char *argv[])
 {
 
     char img_name[NAME_LEN] = "test.img";
+    srand(time(NULL));
+
     if (argc > 1)
     {
         if (strlen(argv[1]) >= NAME_LEN)
@@ -60,17 +66,17 @@ bool write_mbr(FILE *file)
         .BootStrapCode = {0x00},
         .UniqueMbrSignature = 0x0,
         .Unknown = 0x0,
-         // FLAG to indicate to use GPT
-        .Partition[0] = { 
-                         .BootIndicator = 0x00,
-                         .StartingCHS = {0x00, 0x02, 0x00},
-                         .OSIndicator = 0xEE,   //protected MBR
-                         .EndingCHS = {0xFF, 0xFF, 0xFF},
-                         .StartingLBA = 0x00000001,
-                         .SizeInLBA = B2LBA(DISK_SIZE) - 1},
+        // FLAG to indicate to use GPT
+        .Partition[0] = {
+            .BootIndicator = 0x00,
+            .StartingCHS = {0x00, 0x02, 0x00},
+            .OSIndicator = 0xEE, // protected MBR
+            .EndingCHS = {0xFF, 0xFF, 0xFF},
+            .StartingLBA = 0x00000001,
+            .SizeInLBA = B2LBA(DISK_SIZE) - 1},
         .Signature = 0xAA55};
-
-    if (fwrite(&mbr_record, sizeof(mbr_record), 1, file) * sizeof(mbr_record) != sizeof(mbr_record))
+    
+    if(fwrite(&mbr_record, sizeof(MASTER_BOOT_RECORD), 1, file) != 1)
     {
         return false;
     }
@@ -80,45 +86,71 @@ bool write_mbr(FILE *file)
 
 bool write_gpt(FILE *file)
 {
-    GPT_HEADER gpt_header = {
+    GPT_HEADER primary_gpt_header = {
         .Signature = {"EFI PART"},
-        .Revision = 0x00010000, 
+        .Revision = 0x00010000,
         .HeaderSize = 92,
-        .HeaderCRC32 = 0x0, 
+        .HeaderCRC32 = 0x0,
         .Reserved = 0x0,
-        .MyLBA = 1, // GPT header starts at LBA 1
-        .AlternateLBA = B2LBA(DISK_SIZE) - 1, 
-        .FirstUsableLBA = 34, //MBR + GPT header + GPT TABLE
-        .LastUsableLBA = B2LBA(DISK_SIZE) - 34, 
-        .DiskGUID = new_guid(), 
-        .PartitionEntryLBA = 2, // after MBR and GPT header
-        .NumberOfPartitionEntries = GPT_TABLE_ENTRIES, 
+        .MyLBA = 1,                                                                                             // GPT header starts at LBA 1
+        .AlternateLBA = B2LBA(DISK_SIZE) - 1,                                                                   // Backup GPT header at the end of the disk
+        .FirstUsableLBA = 1 + 1 + B2LBA(GPT_TABLE_ENTRIES * sizeof(GPT_PARTITION_ENTRY)),                       // MBR + GPT header + GPT TABLE
+        .LastUsableLBA = B2LBA(DISK_SIZE) - (1 + 1 + B2LBA(GPT_TABLE_ENTRIES * sizeof(GPT_PARTITION_ENTRY))),   // Last usable LBA before the backup GPT header
+        .DiskGUID = new_guid(),
+        .PartitionEntryLBA = 2,                                                                                 // after MBR and GPT header
+        .NumberOfPartitionEntries = GPT_TABLE_ENTRIES,
         .SizeOfPartitionEntry = GPT_ENTRY_SIZE,
-        .PartitionEntryArrayCRC32 = 0x0, 
-        .Reserved2 = {0x00} 
+        .PartitionEntryArrayCRC32 = 0x0,
+        .Reserved2 = {0x00}
     };
 
-    GPT_PARTITION_ENTRY gpt_partition_entry[GPT_TABLE_ENTRIES] = {
 
-        //EFI System Partition
+    GPT_PARTITION_ENTRY primary_gpt_partition_entry[GPT_TABLE_ENTRIES] = {
+
+        // EFI System Partition
         {
-            .PartitionTypeGUID = {0xC12A7328, 0xF81F, 0x11D2, {0xBA, 0x4B, 0x00, 0xA0, 0xC9, 0x3E, 0xB8, 0xA1}}, // GUID for EFI System Partition
+            .PartitionTypeGUID = {0xC12A7328, 0xF81F, 0x11D2, 0xBA, 0x4B, {0x00, 0xA0, 0xC9, 0x3E, 0xC9, 0x3B}}, // GUID for EFI System Partition
             .UniquePartitionGUID = new_guid(),
-            .StartingLBA = ESP_STARTING_LBA, //1MB alignment
-            .EndingLBA = ESP_STARTING_LBA + B2LBA(ESP_SIZE), 
+            .StartingLBA = ESP_STARTING_LBA,
+            .EndingLBA = ESP_STARTING_LBA + B2LBA(ESP_SIZE) - 1,
             .Attributes = 0x0,
-            .PartitionName = u"EFI System Partition"
-        },
-        // Microsoft Reserved Partition
+            .PartitionName = u"EFI System Partition"},
+
+        // Microsoft basic data 
         {
-            .PartitionTypeGUID = {0xE3C9E316, 0x0B5C, 0x4DB8, {0x81, 0xD6, 0x08, 0x00, 0x20, 0xA5, 0xA5, 0xA5}}, // GUID for Microsoft Reserved Partition
+            .PartitionTypeGUID = {0xEBD0A0A2, 0xB9E5, 0x4433, 0x87, 0xC0, {0x68, 0xB6, 0xB7, 0x26, 0x99, 0xC7}},
             .UniquePartitionGUID = new_guid(),
             .StartingLBA = DATA_STARTING_LBA,
-            .EndingLBA = DATA_STARTING_LBA + B2LBA(DATA_SIZE), 
+            .EndingLBA = DATA_STARTING_LBA + B2LBA(DATA_SIZE) - 1,
             .Attributes = 0x0,
-            .PartitionName = u"Data Partition"
-        }
-        
+            .PartitionName = u"Data Partition"}
     };
+
+    GPT_HEADER backup_gpt_header = primary_gpt_header;
+    backup_gpt_header.MyLBA = primary_gpt_header.AlternateLBA;
+    backup_gpt_header.AlternateLBA = primary_gpt_header.MyLBA;
+    backup_gpt_header.PartitionEntryLBA = B2LBA(DISK_SIZE) - 33;
+
+
+    primary_gpt_header.PartitionEntryArrayCRC32 = crc32((uint8_t *)primary_gpt_partition_entry, sizeof(primary_gpt_partition_entry));
+    primary_gpt_header.HeaderCRC32 = crc32((uint8_t *)&primary_gpt_header, primary_gpt_header.HeaderSize);
+
+    
+    if((fwrite(&primary_gpt_header, sizeof(GPT_HEADER), 1, file) != 1) ||
+       (fwrite(primary_gpt_partition_entry, sizeof(GPT_PARTITION_ENTRY), GPT_TABLE_ENTRIES, file) != GPT_TABLE_ENTRIES))
+    {
+        return false;
+    }
+
+    backup_gpt_header.PartitionEntryArrayCRC32 = primary_gpt_header.PartitionEntryArrayCRC32;
+    backup_gpt_header.HeaderCRC32 = crc32((uint8_t *)&backup_gpt_header, backup_gpt_header.HeaderSize);
+
+    fseek(file, backup_gpt_header.PartitionEntryLBA * LBA_SIZE, SEEK_SET);
+    if ((fwrite(primary_gpt_partition_entry, sizeof(GPT_PARTITION_ENTRY), GPT_TABLE_ENTRIES, file) != GPT_TABLE_ENTRIES) ||
+        (fwrite(&backup_gpt_header, sizeof(GPT_HEADER), 1, file) != 1))
+    {
+        return false;
+    }
+
     return true;
 }
