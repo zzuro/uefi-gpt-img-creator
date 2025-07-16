@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-
 static uint32_t crc_table[256];
 
 GUID new_guid(void)
@@ -20,12 +19,11 @@ GUID new_guid(void)
         .TimeLow = *(uint32_t *)&random_bytes[0],
         .TimeMid = *(uint16_t *)&random_bytes[4],
         .TimeHiAndVersion = ((*(uint16_t *)&random_bytes[6]) & 0x0FFF) | 0x4000, // Set version to 4
-        .ClockSeqHiAndReserved = (random_bytes[8] | 0x80) & 0xBF,              // Set variant to RFC 4122
+        .ClockSeqHiAndReserved = (random_bytes[8] | 0x80) & 0xBF,                // Set variant to RFC 4122
         .ClockSeqLow = random_bytes[9],
         .Node = {
             random_bytes[10], random_bytes[11], random_bytes[12],
             random_bytes[13], random_bytes[14], random_bytes[15]}};
-    
 
     return guid;
 }
@@ -66,4 +64,14 @@ uint32_t crc32(uint8_t *buf, size_t len)
         c = crc_table[(c ^ buf[n]) & 0xFF] ^ (c >> 8);
     }
     return c ^ 0xFFFFFFFFL;
+}
+
+void get_current_time(uint16_t *in_time, uint16_t *in_date)
+{
+    time_t now = time(NULL);
+    struct tm *current_time = localtime(&now);
+
+    current_time->tm_sec = current_time->tm_sec >= 60 ? 59 : current_time->tm_sec; // Handle leap seconds
+    *in_date = (current_time->tm_year - 80) << 9 | (current_time->tm_mon + 1) << 5 | current_time->tm_mday;
+    *in_time = current_time->tm_hour << 11 | current_time->tm_min << 5 | (current_time->tm_sec / 2);
 }

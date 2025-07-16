@@ -12,11 +12,9 @@ typedef struct
     uint8_t Node[6];
 } __attribute__((packed)) GUID;
 
-
 GUID new_guid(void);
 
 void make_crc_table(void);
-uint32_t crc32(uint8_t* buf, size_t len);
+uint32_t crc32(uint8_t *buf, size_t len);
 
-
-
+void get_current_time(uint16_t *in_time, uint16_t *in_date);
