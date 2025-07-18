@@ -13,12 +13,15 @@
 #include <const.h>
 #include <log.h>
 #include <fat32.h>
+#include <esp.h>
 
 #define NAME_LEN 512
 
 static bool write_mbr(FILE *file);
 static bool write_gpt(FILE *file);
 static bool write_esp(FILE *file);
+
+uint32_t data_region = 0; 
 
 int main(int argc, char *argv[])
 {
@@ -75,6 +78,25 @@ int main(int argc, char *argv[])
     else
     {
         printf("ESP written successfully to %s\n", img_name);
+    }
+
+    FILE* fp = fopen("BOOTX64.EFI", "rb");
+    if (fp)
+    {
+        char path[25];
+        strcpy(path, "/EFI/BOOT/BOOTX64.EFI");
+
+        if(!add_path(path, file, fp))
+        {
+            fprintf(stderr, "Error adding path %s to file %s\n", path, img_name);
+            fclose(fp);
+            return EXIT_FAILURE;
+        }
+        else
+        {
+            printf("Path %s added successfully to %s\n", path, img_name);
+            fclose(fp);
+        }
     }
 
     fclose(file);
@@ -210,7 +232,7 @@ bool write_esp(FILE *file)
         .FSI_Reserved1 = {0x00},
         .FSI_StrucSig = 0x61417272,
         .FSI_Free_Count = 0xFFFFFFFF,
-        .FSI_Nxt_Free = 0xFFFFFFFF, // Hint for the next free cluster
+        .FSI_Nxt_Free = 5, // Hint for the next free cluster
         .FSI_Reserved2 = {0x00},
         .FSI_TrailSig = 0xAA550000};
 
@@ -262,7 +284,7 @@ bool write_esp(FILE *file)
         fwrite(&cluster, sizeof(uint32_t), 1, file);
     }
 
-    const uint32_t data_region = ESP_STARTING_LBA + bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
+    data_region = ESP_STARTING_LBA + bpb.BPB_RsvdSecCnt + (bpb.BPB_NumFATs * bpb.BPB_FATSz32);
     fseek(file, data_region * LBA_SIZE, SEEK_SET);
 
     DIR_ENTRY efi_dir = {
