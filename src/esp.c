@@ -3,6 +3,7 @@
 #include <const.h>
 #include <ctype.h>
 #include <utils.h>
+#include <inttypes.h>
 
 bool add_path(char* path, FILE* img, FILE* in_file)
 {
@@ -248,4 +249,37 @@ bool add_file(char* name, FILE* img, FILE* in_file, FILE_TYPE type, uint32_t* pa
 
     *parent_cluster = current_cluster; 
     return true;
+}
+
+bool add_info_file(FILE* img)
+{    
+    FILE* fp = fopen("DSKIMG.INF", "wb");
+    if(!fp)
+    {
+        fprintf(stderr, "Error opening DSKIMG.INF for writing\n");
+        return false;
+    }
+
+    fprintf(fp, "DISK_SIZE=%"PRIu64"\n", DISK_SIZE);
+    fclose(fp);
+
+    fp = fopen("DSKIMG.INF", "rb");
+    if(!fp)
+    {
+        fprintf(stderr, "Error opening DSKIMG.INF for reading\n");
+        return false;
+    }
+
+    char path[25];
+    strcpy(path, "/EFI/BOOT/DSKIMG.INF");
+
+    if(!add_path(path, img, fp))
+    {
+        fprintf(stderr, "Error adding path %s to image\n", path);
+        fclose(fp);
+        return false;
+    }
+
+    fclose(fp);
+    return  true;
 }

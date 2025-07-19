@@ -22,6 +22,7 @@ static bool write_gpt(FILE *file);
 static bool write_esp(FILE *file);
 
 uint32_t data_region = 0; 
+uint64_t DISK_SIZE = 0; 
 
 int main(int argc, char *argv[])
 {
@@ -38,6 +39,20 @@ int main(int argc, char *argv[])
         }
         strncpy(img_name, argv[1], NAME_LEN - 1);
         img_name[NAME_LEN - 1] = '\0';
+    }
+
+    if (argc > 2)
+    {
+        DISK_SIZE = strtoull(argv[2], NULL, 10);
+        if (DISK_SIZE == 0)
+        {
+            fprintf(stderr, "Invalid disk size.\n");
+            return EXIT_FAILURE;
+        }
+    }
+    else
+    {
+        DISK_SIZE = GB(2); // Default disk size is 2GB
     }
 
     FILE *file = fopen(img_name, "wb+");
@@ -97,6 +112,17 @@ int main(int argc, char *argv[])
             printf("Path %s added successfully to %s\n", path, img_name);
             fclose(fp);
         }
+    }
+
+    if (!add_info_file(file))
+    {
+        fprintf(stderr, "Error adding info file to %s\n", img_name);
+        fclose(file);
+        return EXIT_FAILURE;
+    }
+    else
+    {
+        printf("Info file added successfully to %s\n", img_name);
     }
 
     fclose(file);
