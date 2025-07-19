@@ -1,15 +1,14 @@
-#!/bin/sh
-
 qemu-system-x86_64 \
-    -bios /usr/share/OVMF/OVMF_CODE.fd \
     -machine q35 \
     -m 256M \
     -net none \
     -usb \
     -vga std \
     -name TEST-IMG \
-    -drive file=test.img,format=raw \
+    -drive if=pflash,format=raw,unit=0,file=/usr/share/OVMF/OVMF_CODE.fd,readonly=on \
+    -drive file=test.img,format=raw,if=ide,index=0 \
     -k de \
     -display gtk \
+    -boot order=d \
     -device usb-mouse \
-    -rtc base=localtime \
+    -rtc base=localtime

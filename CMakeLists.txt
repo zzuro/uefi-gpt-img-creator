@@ -13,3 +13,5 @@ include_directories("include")
 
 
 add_executable(${PROJECT_NAME} main.c ${SOURCES})
+
+add_subdirectory(efi_hello)

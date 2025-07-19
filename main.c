@@ -95,7 +95,8 @@ int main(int argc, char *argv[])
         printf("ESP written successfully to %s\n", img_name);
     }
 
-    FILE* fp = fopen("BOOTX64.EFI", "rb");
+    //start with the EFI shell
+    FILE* fp = fopen("pkg/shellx64.efi", "rb");
     if (fp)
     {
         char path[25];
@@ -113,6 +114,47 @@ int main(int argc, char *argv[])
             fclose(fp);
         }
     }
+
+    //load costume EFI application
+    fp = fopen("cppefi.efi", "rb");
+    if (fp)
+    {
+        char path[25];
+        strcpy(path, "/CPPEFI.EFI");
+
+        if(!add_path(path, file, fp))
+        {
+            fprintf(stderr, "Error adding path %s to file %s\n", path, img_name);
+            fclose(fp);
+            return EXIT_FAILURE;
+        }
+        else
+        {
+            printf("Path %s added successfully to %s\n", path, img_name);
+            fclose(fp);
+        }
+    }
+
+    fp = fopen("startup.nsh", "rb");
+    if (fp)
+    {
+        char path[25];
+        strcpy(path, "/startup.nsh");
+
+        if(!add_path(path, file, fp))
+        {
+            fprintf(stderr, "Error adding path %s to file %s\n", path, img_name);
+            fclose(fp);
+            return EXIT_FAILURE;
+        }
+        else
+        {
+            printf("Path %s added successfully to %s\n", path, img_name);
+            fclose(fp);
+        }
+    }
+
+    
 
     if (!add_info_file(file))
     {
