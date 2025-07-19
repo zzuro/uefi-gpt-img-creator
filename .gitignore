@@ -23,4 +23,5 @@ build
 *.img
 gpt-img-creator
 *.EFI
+*.efi
 *.INF
